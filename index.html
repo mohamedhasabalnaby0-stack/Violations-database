@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>سجل المخالفين</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&family=Space+Mono&display=swap" rel="stylesheet">
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
+  import {
+    getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, query, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBXcBaRfEtdJz0GSRzIuhV__EOwUX93SYc",
+    authDomain: "violation-database.firebaseapp.com",
+    projectId: "violation-database",
+    storageBucket: "violation-database.firebasestorage.app",
+    messagingSenderId: "433089827563",
+    appId: "1:433089827563:web:6201111f5c1302d4a564ae"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const violationsCol = collection(db, "violations");
+
+  // Expose what the rest of the page's plain-JS needs
+  window.__fb = { db, violationsCol, addDoc, deleteDoc, doc, onSnapshot, query, serverTimestamp };
+
+  // Cloudinary (free media hosting, no billing account needed)
+  window.__cloudinary = {
+    cloudName: "d3lngniy",
+    uploadPreset: "Violation database"
+  };
+</script>
+<style>
+  :root{
+    --navy:#12233d;
+    --navy-2:#1c3a5e;
+    --paper:#eef1f0;
+    --card:#ffffff;
+    --ink:#16212e;
+    --muted:#5b6b7a;
+    --amber:#c9822a;
+    --amber-soft:#f4e3cc;
+    --line:#d7dde1;
+    --danger:#a33f3f;
+  }
+  html.dark{
+    --navy:#0d1826;
+    --navy-2:#17304d;
+    --paper:#0f1720;
+    --card:#182430;
+    --ink:#e7edf2;
+    --muted:#93a3b0;
+    --amber:#d99a4b;
+    --amber-soft:#3a2f1d;
+    --line:#2a3742;
+    --danger:#d9706f;
+  }
+  html.dark body{background:var(--paper);}
+  html.dark input, html.dark select, html.dark textarea{
+    background:#101a24;
+    color:var(--ink);
+  }
+  html.dark .person-header{background:#141f29;}
+  html.dark .media-tag{background:#141f29;}
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Tajawal', sans-serif;
+    min-height:100vh;
+  }
+  .wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px;}
+
+  header{
+    background:var(--navy);
+    color:#fff;
+    padding:22px 18px;
+    border-radius:10px;
+    margin-bottom:18px;
+    position:relative;
+    overflow:hidden;
+  }
+  header::before{
+    content:"";
+    position:absolute;
+    inset:0;
+    background:repeating-linear-gradient(135deg, rgba(255,255,255,.035) 0 2px, transparent 2px 14px);
+  }
+  header h1{
+    margin:0;
+    font-weight:900;
+    font-size:22px;
+    position:relative;
+  }
+  header p{
+    margin:6px 0 0;
+    color:#b9c6d6;
+    font-size:13.5px;
+    position:relative;
+  }
+  .dark-toggle{
+    position:absolute;
+    top:18px;
+    left:16px;
+    background:rgba(255,255,255,.12);
+    border:1px solid rgba(255,255,255,.25);
+    color:#fff;
+    border-radius:20px;
+    padding:6px 12px;
+    font-size:12.5px;
+    font-family:inherit;
+    cursor:pointer;
+    z-index:2;
+  }
+
+  .filter-bar{
+    display:flex;
+    flex-wrap:wrap;
+    gap:7px;
+    margin-bottom:14px;
+  }
+  .chip{
+    border:1px solid var(--line);
+    background:var(--card);
+    color:var(--muted);
+    font-family:inherit;
+    font-size:12.5px;
+    padding:6px 13px;
+    border-radius:20px;
+    cursor:pointer;
+  }
+  .chip.active{
+    background:var(--navy);
+    color:#fff;
+    border-color:var(--navy);
+  }
+  .chip.clear-chip{
+    color:var(--danger);
+    border-color:var(--danger);
+    background:transparent;
+  }
+
+  .load-more-btn{
+    display:block;
+    width:100%;
+    margin-top:4px;
+    padding:10px;
+    background:transparent;
+    border:1px solid var(--navy);
+    color:var(--navy);
+    border-radius:8px;
+    font-family:inherit;
+    font-size:13.5px;
+    font-weight:700;
+    cursor:pointer;
+  }
+
+  .search-box{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:14px;
+    margin-bottom:16px;
+  }
+  .search-box label{
+    display:block;
+    font-size:12.5px;
+    color:var(--muted);
+    margin-bottom:6px;
+    font-weight:500;
+  }
+  .search-row{display:flex;gap:8px;}
+  input, select{
+    font-family:inherit;
+    font-size:15px;
+    padding:10px 12px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    background:#fbfcfc;
+    color:var(--ink);
+    width:100%;
+  }
+  input:focus, select:focus{
+    outline:none;
+    border-color:var(--navy-2);
+    background:#fff;
+  }
+  .search-row input{flex:1;}
+  .btn{
+    border:none;
+    border-radius:8px;
+    padding:10px 16px;
+    font-family:inherit;
+    font-weight:700;
+    font-size:14.5px;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .btn-navy{background:var(--navy); color:#fff;}
+  .btn-navy:active{background:var(--navy-2);}
+  .btn-ghost{background:transparent; color:var(--navy); border:1px solid var(--navy);}
+
+  #search-result{margin-top:12px;}
+  .found{
+    background:var(--amber-soft);
+    border:1px solid var(--amber);
+    border-radius:8px;
+    padding:12px;
+    font-size:14.5px;
+  }
+  .found b{color:var(--navy);}
+  .notfound{
+    background:#f0f4f2;
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:12px;
+    font-size:14.5px;
+    color:var(--muted);
+  }
+
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:16px;
+    margin-bottom:16px;
+  }
+  .card h2{
+    margin:0 0 14px;
+    font-size:15px;
+    color:var(--navy);
+    font-weight:700;
+  }
+  .grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+  }
+  .grid .full{grid-column:1/-1;}
+  .field label{
+    display:block;
+    font-size:12px;
+    color:var(--muted);
+    margin-bottom:5px;
+  }
+  textarea{
+    font-family:inherit;
+    font-size:15px;
+    padding:10px 12px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    background:#fbfcfc;
+    color:var(--ink);
+    width:100%;
+    resize:vertical;
+    min-height:70px;
+  }
+  textarea:focus{
+    outline:none;
+    border-color:var(--navy-2);
+    background:#fff;
+  }
+  .file-field{
+    border:1px dashed var(--line);
+    border-radius:8px;
+    padding:10px 12px;
+    background:#fbfcfc;
+  }
+  .file-field input[type="file"]{
+    font-size:12.5px;
+    color:var(--muted);
+    width:100%;
+    border:none;
+    padding:0;
+    background:transparent;
+  }
+  .upload-progress{
+    font-size:12px;
+    color:var(--muted);
+    margin-top:10px;
+    display:none;
+  }
+  .upload-progress.show{display:block;}
+  .media-tags{
+    display:flex;
+    gap:6px;
+    margin-top:3px;
+  }
+  .media-tag{
+    font-size:11px;
+    background:#eef1f0;
+    color:var(--muted);
+    padding:2px 7px;
+    border-radius:10px;
+  }
+  .add-btn{
+    margin-top:14px;
+    width:100%;
+    padding:12px;
+    background:var(--navy);
+    color:#fff;
+    font-size:15px;
+  }
+
+  .list-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:10px;
+  }
+  .list-head h2{margin:0;font-size:15px;color:var(--navy);}
+  .count-tag{
+    font-family:'Space Mono', monospace;
+    font-size:12px;
+    color:var(--muted);
+    background:#f0f4f2;
+    padding:3px 8px;
+    border-radius:20px;
+  }
+
+  .person-group{
+    border:1px solid var(--line);
+    border-radius:10px;
+    margin-bottom:10px;
+    overflow:hidden;
+  }
+  .person-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:12px 14px;
+    background:#f7f9f8;
+    cursor:pointer;
+  }
+  .person-header .name{font-weight:700;font-size:15px;}
+  .person-header .meta{font-size:12px;color:var(--muted);margin-top:2px;}
+  .badge{
+    background:var(--navy);
+    color:#fff;
+    font-family:'Space Mono', monospace;
+    font-size:12px;
+    padding:3px 9px;
+    border-radius:20px;
+    flex-shrink:0;
+  }
+  .badge.warn{background:var(--danger);}
+  .violations-list{
+    display:none;
+    padding:0 14px 12px;
+  }
+  .violations-list.open{display:block;}
+  .v-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:9px 0;
+    border-top:1px dashed var(--line);
+    font-size:13.5px;
+    gap:8px;
+  }
+  .v-row .vtype{font-weight:500;}
+  .v-row .vdate{color:var(--muted); font-family:'Space Mono', monospace; font-size:12px;}
+  .v-row .del{
+    background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px;padding:2px 6px;
+  }
+
+  .empty-state{
+    text-align:center;
+    color:var(--muted);
+    font-size:14px;
+    padding:30px 10px;
+  }
+
+  .found-row{
+    background:var(--amber-soft);
+    border:1px solid var(--amber);
+    border-radius:8px;
+    padding:12px;
+    margin-top:8px;
+    cursor:pointer;
+  }
+  .found-row:active{background:#eed7b4;}
+  .found-row b{color:var(--navy);}
+  .found-row .tap-hint{
+    font-size:11.5px;
+    color:var(--muted);
+    margin-top:4px;
+  }
+
+  .modal-overlay{
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(18,35,61,.55);
+    z-index:60;
+    align-items:flex-end;
+    justify-content:center;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal-sheet{
+    background:#fff;
+    width:100%;
+    max-width:560px;
+    max-height:82vh;
+    overflow-y:auto;
+    border-radius:16px 16px 0 0;
+    padding:20px 18px 24px;
+  }
+  .modal-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    margin-bottom:6px;
+  }
+  .modal-head .name{font-size:19px;font-weight:900;color:var(--navy);}
+  .modal-head .meta{font-size:12.5px;color:var(--muted);margin-top:3px;}
+  .modal-close{
+    background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;padding:2px 8px;
+  }
+  .modal-count{
+    display:inline-block;
+    margin:10px 0 14px;
+    font-family:'Space Mono', monospace;
+    font-size:12.5px;
+    background:var(--navy);
+    color:#fff;
+    padding:4px 10px;
+    border-radius:20px;
+  }
+  .modal-count.warn{background:var(--danger);}
+  .modal-list .v-row{padding:10px 0;}
+  .v-desc{
+    font-size:12.5px;
+    color:var(--muted);
+    margin-top:4px;
+    white-space:pre-wrap;
+  }
+  .v-media{
+    margin-top:8px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .v-media img{
+    max-width:100%;
+    border-radius:8px;
+    display:block;
+  }
+  .v-media video{
+    max-width:100%;
+    border-radius:8px;
+    display:block;
+    background:#000;
+  }
+  .v-row-full{
+    padding:12px 0;
+    border-top:1px dashed var(--line);
+  }
+  .v-row-full .top-line{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:8px;
+  }
+
+  .toast{
+    position:fixed;
+    bottom:20px;
+    left:50%;
+    transform:translateX(-50%);
+    background:var(--navy);
+    color:#fff;
+    padding:10px 18px;
+    border-radius:8px;
+    font-size:13.5px;
+    opacity:0;
+    transition:opacity .25s, transform .25s;
+    pointer-events:none;
+    z-index:50;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(-4px);}
+
+  @media (max-width:480px){
+    .grid{grid-template-columns:1fr;}
+    .search-row{flex-direction:column;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <button class="dark-toggle" onclick="toggleDarkMode()" id="darkToggleBtn">🌙 دارك مود</button>
+    <h1>سجل المخالفين</h1>
+    <p>قاعدة بيانات لمتابعة المخالفات وأصحابها</p>
+  </header>
+
+  <div class="search-box">
+    <label>ابحث بالاسم أو رقم السرك</label>
+    <div class="search-row">
+      <input id="searchInput" type="text" placeholder="اكتب الاسم أو الرقم..." onkeydown="if(event.key==='Enter') doSearch()">
+      <button class="btn btn-navy" onclick="doSearch()">بحث</button>
+    </div>
+    <div id="search-result"></div>
+  </div>
+
+  <div class="card">
+    <h2>تسجيل مخالفة جديدة</h2>
+    <div class="grid">
+      <div class="field">
+        <label>اسم المخالف</label>
+        <input id="f-name" type="text" placeholder="مثال: أحمد محمود">
+      </div>
+      <div class="field">
+        <label>رقم السرك</label>
+        <input id="f-serk" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="مثال: 12345" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+      </div>
+      <div class="field">
+        <label>نوع المخالفة</label>
+        <input id="f-type" type="text" placeholder="مثال: تجاوز السرعة">
+      </div>
+      <div class="field">
+        <label>تاريخ المخالفة</label>
+        <input id="f-date" type="date">
+      </div>
+      <div class="field full">
+        <label>وصف إضافي (اختياري)</label>
+        <textarea id="f-desc" placeholder="أي تفاصيل إضافية عن المخالفة..."></textarea>
+      </div>
+      <div class="field">
+        <label>صورة (اختياري)</label>
+        <div class="file-field">
+          <input id="f-image" type="file" accept="image/*">
+        </div>
+      </div>
+      <div class="field">
+        <label>فيديو (اختياري)</label>
+        <div class="file-field">
+          <input id="f-video" type="file" accept="video/*">
+        </div>
+      </div>
+    </div>
+    <div class="upload-progress" id="uploadProgress">جاري رفع الملفات...</div>
+    <button class="btn add-btn" id="addBtn" onclick="addViolation()">إضافة المخالفة</button>
+  </div>
+
+  <div class="card">
+    <div class="list-head">
+      <h2>كل المخالفين</h2>
+      <span class="count-tag" id="totalCount">0 مخالف</span>
+    </div>
+    <div class="filter-bar">
+      <button class="chip" id="chip-recent" onclick="toggleSortRecent()">الأحدث</button>
+      <button class="chip" id="chip-marka" onclick="toggleFilterType('ماركة')">ماركة</button>
+      <button class="chip" id="chip-nayem" onclick="toggleFilterType('نايم')">نايم</button>
+      <button class="chip clear-chip" onclick="clearFilters()">مسح الفلاتر</button>
+    </div>
+    <div id="peopleList"></div>
+    <button class="load-more-btn" id="loadMoreBtn" style="display:none;" onclick="toggleExpand()"></button>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this) closeModal()">
+  <div class="modal-sheet">
+    <div class="modal-head">
+      <div>
+        <div class="name" id="modal-name"></div>
+        <div class="meta" id="modal-serk"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <span class="modal-count" id="modal-count"></span>
+    <div class="modal-list" id="modal-list"></div>
+  </div>
+</div>
+
+<script>
+let records = [];
+let dbReady = false;
+
+function initFirestoreSync(){
+  if(!window.__fb){
+    // Firebase module script hasn't finished loading yet — retry shortly
+    setTimeout(initFirestoreSync, 100);
+    return;
+  }
+  const { violationsCol, onSnapshot, query } = window.__fb;
+  onSnapshot(query(violationsCol), (snapshot) => {
+    records = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    dbReady = true;
+    render();
+    const q = document.getElementById('searchInput').value.trim();
+    if(q) doSearch();
+    refreshModalIfOpen();
+  }, (error) => {
+    showToast('تعذّر الاتصال بقاعدة البيانات');
+    console.error(error);
+  });
+}
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+function todayStr(){
+  const d = new Date();
+  return d.toISOString().slice(0,10);
+}
+document.getElementById('f-date').value = todayStr();
+
+function groupByPerson(list){
+  const map = {};
+  list.forEach(r=>{
+    const key = (r.serk || '').trim() || ('name:'+r.name.trim().toLowerCase());
+    if(!map[key]) map[key] = { name:r.name, serk:r.serk, items:[] };
+    map[key].items.push(r);
+  });
+  return Object.values(map).sort((a,b)=> b.items.length - a.items.length);
+}
+
+async function uploadToCloudinary(file, resourceType){
+  const { cloudName, uploadPreset } = window.__cloudinary;
+  const url = `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`;
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', uploadPreset);
+
+  const res = await fetch(url, { method: 'POST', body: formData });
+  if(!res.ok){
+    const errText = await res.text();
+    throw new Error('Cloudinary upload failed: ' + errText);
+  }
+  const data = await res.json();
+  return data.secure_url;
+}
+
+async function addViolation(){
+  const name = document.getElementById('f-name').value.trim();
+  const serk = document.getElementById('f-serk').value.trim();
+  const type = document.getElementById('f-type').value.trim();
+  const date = document.getElementById('f-date').value;
+  const desc = document.getElementById('f-desc').value.trim();
+  const imageFile = document.getElementById('f-image').files[0] || null;
+  const videoFile = document.getElementById('f-video').files[0] || null;
+
+  if(!name || !type || !date){
+    showToast('من فضلك املأ الاسم ونوع المخالفة والتاريخ');
+    return;
+  }
+
+  if(!window.__fb){
+    showToast('لسه بيتصل بقاعدة البيانات، حاول تاني بعد ثانية');
+    return;
+  }
+
+  const addBtn = document.getElementById('addBtn');
+  const progressEl = document.getElementById('uploadProgress');
+  addBtn.disabled = true;
+
+  try{
+    const { violationsCol, addDoc, serverTimestamp } = window.__fb;
+    const data = { name, serk, type, date, desc, createdAt: serverTimestamp() };
+
+    if(imageFile){
+      progressEl.textContent = 'جاري رفع الصورة...';
+      progressEl.classList.add('show');
+      data.imageUrl = await uploadToCloudinary(imageFile, 'image');
+    }
+
+    if(videoFile){
+      progressEl.textContent = 'جاري رفع الفيديو...';
+      progressEl.classList.add('show');
+      data.videoUrl = await uploadToCloudinary(videoFile, 'video');
+    }
+
+    progressEl.classList.remove('show');
+    await addDoc(violationsCol, data);
+  }catch(e){
+    showToast('فشل رفع الملفات أو الحفظ');
+    console.error(e);
+    progressEl.classList.remove('show');
+    addBtn.disabled = false;
+    return;
+  }
+
+  document.getElementById('f-name').value='';
+  document.getElementById('f-serk').value='';
+  document.getElementById('f-type').value='';
+  document.getElementById('f-date').value = todayStr();
+  document.getElementById('f-desc').value='';
+  document.getElementById('f-image').value='';
+  document.getElementById('f-video').value='';
+
+  addBtn.disabled = false;
+  showToast('تم تسجيل المخالفة');
+}
+
+async function deleteViolation(id){
+  if(!window.__fb) return;
+  try{
+    const { db, doc, deleteDoc } = window.__fb;
+    await deleteDoc(doc(db, "violations", id));
+  }catch(e){
+    showToast('فشل حذف المخالفة');
+    console.error(e);
+  }
+}
+
+function fmtDate(d){
+  return d;
+}
+
+let groups = [];
+let filterType = null;
+let sortMode = 'default';
+let expanded = false;
+const PAGE_SIZE = 2;
+
+function getGroupRecency(group){
+  let max = 0;
+  group.items.forEach(item => {
+    let t = 0;
+    if(item.createdAt && typeof item.createdAt.toMillis === 'function') t = item.createdAt.toMillis();
+    else if(item.createdAt && item.createdAt.seconds) t = item.createdAt.seconds * 1000;
+    else t = Date.now(); // record just added locally, or has no timestamp (old record) — treat as recent so it's visible immediately
+    if(t > max) max = t;
+  });
+  return max;
+}
+
+function toggleFilterType(type){
+  filterType = (filterType === type) ? null : type;
+  expanded = false;
+  render();
+}
+
+function toggleSortRecent(){
+  sortMode = (sortMode === 'recent') ? 'default' : 'recent';
+  render();
+}
+
+function clearFilters(){
+  filterType = null;
+  sortMode = 'default';
+  render();
+}
+
+function toggleExpand(){
+  expanded = !expanded;
+  render();
+}
+
+function render(){
+  const source = filterType ? records.filter(r => (r.type||'').includes(filterType)) : records;
+  let fullGroups = groupByPerson(source);
+  if(sortMode === 'recent'){
+    fullGroups = fullGroups.slice().sort((a,b) => getGroupRecency(b) - getGroupRecency(a));
+  }
+
+  // update chip active states
+  document.getElementById('chip-recent').classList.toggle('active', sortMode === 'recent');
+  document.getElementById('chip-marka').classList.toggle('active', filterType === 'ماركة');
+  document.getElementById('chip-nayem').classList.toggle('active', filterType === 'نايم');
+
+  const container = document.getElementById('peopleList');
+  const loadMoreBtn = document.getElementById('loadMoreBtn');
+  document.getElementById('totalCount').textContent = fullGroups.length + ' مخالف';
+
+  if(fullGroups.length === 0){
+    if(!dbReady){
+      container.innerHTML = '<div class="empty-state">جاري الاتصال بقاعدة البيانات...</div>';
+    }else if(records.length === 0){
+      container.innerHTML = '<div class="empty-state">لسه مفيش مخالفات متسجلة</div>';
+    }else{
+      container.innerHTML = '<div class="empty-state">لا يوجد مخالفين مطابقين لهذا الفلتر</div>';
+    }
+    loadMoreBtn.style.display = 'none';
+    groups = [];
+    return;
+  }
+
+  groups = expanded ? fullGroups : fullGroups.slice(0, PAGE_SIZE);
+
+  if(fullGroups.length > PAGE_SIZE){
+    loadMoreBtn.style.display = 'block';
+    loadMoreBtn.textContent = expanded ? 'إخفاء' : `إظهار المزيد (${fullGroups.length - PAGE_SIZE})`;
+  }else{
+    loadMoreBtn.style.display = 'none';
+  }
+
+  container.innerHTML = groups.map((g, idx) => {
+    const count = g.items.length;
+    const badgeClass = count >= 3 ? 'badge warn' : 'badge';
+
+    return `
+      <div class="person-group">
+        <div class="person-header" onclick="openPersonModal(groups[${idx}])">
+          <div>
+            <div class="name">${escapeHtml(g.name)}</div>
+            <div class="meta">${g.serk ? 'رقم السرك: ' + escapeHtml(g.serk) : 'بدون رقم سرك'}</div>
+          </div>
+          <span class="${badgeClass}">${count} مخالفة</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function toggleGroup(idx){
+  const el = document.getElementById('group-'+idx);
+  el.classList.toggle('open');
+}
+
+function escapeHtml(s){
+  return (s||'').replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
+let searchGroups = [];
+
+async function doSearch(){
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  const resultBox = document.getElementById('search-result');
+  if(!q){
+    resultBox.innerHTML = '';
+    return;
+  }
+  const matches = records.filter(r =>
+    r.name.toLowerCase().includes(q) || (r.serk || '').toLowerCase().includes(q)
+  );
+
+  if(matches.length === 0){
+    resultBox.innerHTML = '<div class="notfound">مفيش أي شخص بهذا الاسم أو الرقم في السجل</div>';
+    searchGroups = [];
+    return;
+  }
+
+  searchGroups = groupByPerson(matches);
+  resultBox.innerHTML = searchGroups.map((g, i) => `
+    <div class="found-row" onclick="openModalFromSearch(${i})">
+      <div><b>${escapeHtml(g.name)}</b> ${g.serk ? '— رقم السرك: ' + escapeHtml(g.serk) : ''}</div>
+      <div style="margin-top:4px;">عدد المخالفات المسجلة: <b>${g.items.length}</b></div>
+      <div class="tap-hint">اضغط لعرض كل التفاصيل</div>
+    </div>
+  `).join('');
+}
+
+function openModalFromSearch(i){
+  openPersonModal(searchGroups[i]);
+}
+
+let currentModalKey = null;
+
+function openPersonModal(group){
+  currentModalKey = (group.serk || '').trim() || ('name:'+group.name.trim().toLowerCase());
+  renderModal(group);
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function renderModal(group){
+  document.getElementById('modal-name').textContent = group.name;
+  document.getElementById('modal-serk').textContent = group.serk ? 'رقم السرك: ' + group.serk : 'بدون رقم سرك';
+  const count = group.items.length;
+  const countEl = document.getElementById('modal-count');
+  countEl.textContent = count + ' مخالفة مسجلة';
+  countEl.className = 'modal-count' + (count >= 3 ? ' warn' : '');
+
+  const rows = group.items
+    .slice()
+    .sort((a,b)=> b.date.localeCompare(a.date))
+    .map(item => {
+      const mediaHtml = [];
+      if(item.imageUrl){
+        mediaHtml.push(`<img src="${escapeHtml(item.imageUrl)}" alt="صورة المخالفة" loading="lazy">`);
+      }
+      if(item.videoUrl){
+        mediaHtml.push(`<video src="${escapeHtml(item.videoUrl)}" controls preload="metadata"></video>`);
+      }
+      return `
+        <div class="v-row-full">
+          <div class="top-line">
+            <div>
+              <div class="vtype">${escapeHtml(item.type)}</div>
+              <div class="vdate">${item.date}</div>
+            </div>
+            <button class="del" onclick="deleteViolation('${item.id}')">✕</button>
+          </div>
+          ${item.desc ? `<div class="v-desc">${escapeHtml(item.desc)}</div>` : ''}
+          ${mediaHtml.length ? `<div class="v-media">${mediaHtml.join('')}</div>` : ''}
+        </div>
+      `;
+    }).join('');
+  document.getElementById('modal-list').innerHTML = rows;
+}
+
+function refreshModalIfOpen(){
+  if(!document.getElementById('modalOverlay').classList.contains('open')) return;
+  const groups = groupByPerson(records);
+  const g = groups.find(g => ((g.serk||'').trim() || ('name:'+g.name.trim().toLowerCase())) === currentModalKey);
+  if(g){
+    renderModal(g);
+  }else{
+    closeModal();
+  }
+}
+
+function closeModal(){
+  document.getElementById('modalOverlay').classList.remove('open');
+  currentModalKey = null;
+}
+
+function toggleDarkMode(){
+  const isDark = document.documentElement.classList.toggle('dark');
+  document.getElementById('darkToggleBtn').textContent = isDark ? '☀️ لايت مود' : '🌙 دارك مود';
+  try{ localStorage.setItem('violations-dark-mode', isDark ? '1' : '0'); }catch(e){}
+}
+
+(function initDarkModePreference(){
+  try{
+    if(localStorage.getItem('violations-dark-mode') === '1'){
+      document.documentElement.classList.add('dark');
+      document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('darkToggleBtn').textContent = '☀️ لايت مود';
+      });
+    }
+  }catch(e){}
+})();
+
+initFirestoreSync();
+</script>
+</body>
+</html>
