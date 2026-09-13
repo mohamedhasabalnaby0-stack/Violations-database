@@ -556,9 +556,8 @@
     </div>
     <div class="filter-bar">
       <button class="chip" id="chip-recent" onclick="toggleSortRecent()">الأحدث</button>
-      <button class="chip" id="chip-marka" onclick="toggleFilterType('ماركة')">ماركة</button>
-      <button class="chip" id="chip-nayem" onclick="toggleFilterType('نايم')">نايم</button>
-      <button class="chip clear-chip" onclick="clearFilters()">مسح الفلاتر</button>
+      <button class="chip" id="chip-marka" onclick="toggleFilterType('marka')">ماركة</button>
+      <button class="chip" id="chip-nayem" onclick="toggleFilterType('nayem')">نايم / نوم</button>
     </div>
     <div id="peopleList"></div>
     <button class="load-more-btn" id="loadMoreBtn" style="display:none;" onclick="toggleExpand()"></button>
@@ -739,8 +738,13 @@ function getGroupRecency(group){
   return max;
 }
 
-function toggleFilterType(type){
-  filterType = (filterType === type) ? null : type;
+const FILTER_KEYWORDS = {
+  marka: ['ماركة'],
+  nayem: ['نايم', 'نوم']
+};
+
+function toggleFilterType(key){
+  filterType = (filterType === key) ? null : key;
   expanded = false;
   render();
 }
@@ -750,19 +754,16 @@ function toggleSortRecent(){
   render();
 }
 
-function clearFilters(){
-  filterType = null;
-  sortMode = 'default';
-  render();
-}
-
 function toggleExpand(){
   expanded = !expanded;
   render();
 }
 
 function render(){
-  const source = filterType ? records.filter(r => (r.type||'').includes(filterType)) : records;
+  const keywords = filterType ? FILTER_KEYWORDS[filterType] : null;
+  const source = keywords
+    ? records.filter(r => keywords.some(k => (r.type||'').includes(k)))
+    : records;
   let fullGroups = groupByPerson(source);
   if(sortMode === 'recent'){
     fullGroups = fullGroups.slice().sort((a,b) => getGroupRecency(b) - getGroupRecency(a));
@@ -770,8 +771,8 @@ function render(){
 
   // update chip active states
   document.getElementById('chip-recent').classList.toggle('active', sortMode === 'recent');
-  document.getElementById('chip-marka').classList.toggle('active', filterType === 'ماركة');
-  document.getElementById('chip-nayem').classList.toggle('active', filterType === 'نايم');
+  document.getElementById('chip-marka').classList.toggle('active', filterType === 'marka');
+  document.getElementById('chip-nayem').classList.toggle('active', filterType === 'nayem');
 
   const container = document.getElementById('peopleList');
   const loadMoreBtn = document.getElementById('loadMoreBtn');
